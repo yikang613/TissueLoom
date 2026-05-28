@@ -1,0 +1,126 @@
+# ============================================================
+# .gitignore for TA-BNT
+# ============================================================
+
+# ----- ADNI data (governed by ADNI Data Use Agreement) -----
+ADNIMERGE_preclinicalAD.csv
+ADNI_VisitCode.txt
+matched_subjects_metadata.csv
+
+# ----- General data file patterns (catches accidental additions) -----
+*.nii
+*.nii.gz
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.mat
+*.pkl
+*.pickle
+
+# ----- Model checkpoints (ADDED 2026-05-14: never commit these) -----
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+best_checkpoint.pt
+
+# ----- Results & model outputs -----
+analysis_results/
+model_features/
+non_tabnt_interpretability_results/
+reviewer_figures/
+saved_results/
+subject_predictions/
+
+# ----- interpretation_analysis: scripts + small results committed,
+#       heavy binaries excluded by the patterns below ---------------
+# (Note: we intentionally do NOT exclude the whole interpretation_analysis/
+# folder, because the step1-4 scripts and the small summary CSVs that
+# drive the manuscript figures live there. The atlas NIfTIs and the
+# big NPZ archives are filtered out below.)
+# Atlas NIfTI files (downloadable from CBIG/FSL — not project-specific).
+interpretation_analysis/*.nii
+interpretation_analysis/*.nii.gz
+# Heavy outputs from step 4 (21 MB per run, regenerable from the pipeline).
+interpretation_analysis/interpretability_analysis/*.npz
+# Per-fold long-format CSVs (large; the summary CSVs cover the same info).
+interpretation_analysis/interpretability_analysis/*_by_fold.csv
+# 3D rendering outputs (large PNG/PDF collections, regenerable from the
+# plotting scripts).
+interpretation_analysis/interpretability_analysis/circuit_glass_brains/
+interpretation_analysis/interpretability_analysis/circuit_pyvista/
+interpretation_analysis/interpretability_analysis/atlas_overview/
+
+# Common results directory patterns (in case of new ones later)
+results/
+outputs/
+checkpoints/
+wandb/
+runs/
+lightning_logs/
+mlruns/
+
+# ----- Logs & scratch -----
+*.log
+debug_output.txt
+remaining_log.txt
+reviewer_log.txt
+
+# ----- Notebooks (we're not committing these) -----
+*.ipynb
+.ipynb_checkpoints/
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ----- Virtual environments -----
+venv/
+env/
+.venv/
+.env
+
+# ----- IDE / editor -----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ----- OS / misc -----
+Thumbs.db
+
+# ----- Hydra and other run output folders -----
+multirun/
+result/
+
+# ----- Literature (copyrighted PDFs etc. — keep local only) -----
+literature/
+
+# ----- Local backup files inside AI_Figures (brainstorming assets) -----
+# The folder itself is tracked, but Power Point backups are excluded.
+AI_Figures/backup/
+
+# ----- macOS / Windows misc that sometimes sneaks in -----
+.AppleDouble/
+$RECYCLE.BIN/

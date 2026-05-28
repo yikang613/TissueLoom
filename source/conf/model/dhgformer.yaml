@@ -1,0 +1,49 @@
+# DHGFormer (MICCAI 2025) -- Dynamic Hierarchical Graph Transformer.
+# Ported from classification/DHGFormer/. Defaults match setting/abide_DHGFormer.yaml.
+#
+# NOTE on atlases:
+#   The shipped node_clus_map.pickle encodes a 200-ROI Yeo-7 partition
+#   (cumulative ends [41, 70, 91, 110, 130, 137, 158, 200]). If you run
+#   this model on a different atlas (e.g. one of your ADNI variants with
+#   248 or 360 ROIs), you MUST:
+#     (1) supply a new pickle via `node_clus_map_path` whose keys list
+#         the desired ROI order, and
+#     (2) override `subnetwork_ends` below so it matches that atlas and
+#         ends at dataset.node_sz.
+#
+# The constructor raises a clear error if the two are inconsistent.
+name: DHGFormer
+
+# Output classes. Defaults to 2 for binary AD / pAD classification.
+out_dim: 2
+
+# --- Feature extractor ---
+# Only 'transformer' is currently ported.
+extractor_type: transformer
+embedding_size: 8
+# The attention code in the original repo hardcodes 4-head mask broadcasting,
+# so leaving this at 4 reproduces the paper; other values are accepted but
+# the attention mask will still be broadcast to 4 heads.
+num_head: 4
+
+# --- Graph generator ---
+# 'product' (dot-product similarity, default in the paper) or 'linear'
+# (learned sender/receiver projection).
+graph_generation: product
+
+# --- Subnetwork partition ---
+# Cumulative right-edges of each functional subnetwork. Must end at
+# dataset.node_sz. Default is the Yeo-7 200-ROI partition from the paper.
+subnetwork_ends: [41, 70, 91, 110, 130, 137, 158, 200, 248]
+
+# Optional: absolute path to a pickle whose .keys() list the desired ROI
+# ordering. When unset, the model loads the bundled pickle that sits next
+# to source/models/DHGFormer/dhgformer.py.
+# node_clus_map_path: /abs/path/to/custom_node_clus_map.pickle
+
+# --- Auxiliary-loss hyperparameters ---
+# These are consumed by `DHGFormer.loss()`, which a custom training loop
+# can call after each forward pass. The default source/training/training.py
+# does NOT call this -- it uses CE loss only, so the model still trains
+# but without the paper's group + sparsity terms.
+sparsity_loss_weight: 1.0e-4

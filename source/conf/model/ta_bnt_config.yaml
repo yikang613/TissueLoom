@@ -1,0 +1,13 @@
+# Tissue-Aware BNT Configuration
+# Based on the insight: Add INDUCTIVE BIAS, not more CAPACITY
+
+name: TissueAwareBNT
+sizes: [360, 100]
+pooling: [false, true]
+pos_encoding: identity  # identity, none
+orthogonal: true
+freeze_center: true
+project_assignment: true
+pos_embed_dim: 360
+num_gm_nodes: 200
+num_wm_nodes: 48

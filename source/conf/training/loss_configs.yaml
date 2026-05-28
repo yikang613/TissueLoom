@@ -1,0 +1,165 @@
+# ============================================================
+# Loss Function Experiments for TA-BNT v2
+# All use Exp 4 architecture (bipartite_combined)
+# Only the loss configuration changes
+# ============================================================
+#
+# IMPORTANT: These configs require:
+# 1. TABNTTrain training class (tabnt_training.py)
+# 2. get_biadj() method on TissueAwareBNT_v2
+# 3. _last_biadj cache in BipartiteProjectionCombined
+# ============================================================
+
+
+# --- T1: Class weight only (no coupling loss) ---
+# Baseline: does class weighting alone fix sensitivity?
+# Expected: sensitivity jumps from 0.24 to ~0.50-0.60
+t1_class_weight:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  # Loss config
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+
+# --- T2: Class weight + inter-group loss ---
+# Does maximizing CN-pAD biadj distance help?
+t2_inter:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  # Loss config
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.1
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+
+# --- T3: Class weight + inter + intra ---
+# Full group-aware coupling loss
+t3_inter_intra:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  # Loss config
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.1
+  lambda_intra: 0.01
+  use_dec_loss: false
+
+
+# --- T4: Stronger inter-group ---
+# More aggressive CN-pAD separation
+t4_strong_inter:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  # Loss config
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.5
+  lambda_intra: 0.01
+  use_dec_loss: false
+
+
+# --- T5: Stronger intra-group ---
+# More consistent within-group coupling patterns
+t5_strong_intra:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  # Loss config
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.1
+  lambda_intra: 0.1
+  use_dec_loss: false
+
+
+# --- T6: Coupling loss without class weight ---
+# Can contrastive loss replace class weighting?
+t6_no_classweight:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  # Loss config (no class weight)
+  lambda_inter: 0.1
+  lambda_intra: 0.01
+  use_dec_loss: false
+
+
+# --- T7: Full combo with DEC loss ---
+# Best coupling loss config + DEC clustering
+t7_full:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  # Loss config
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.1
+  lambda_intra: 0.01
+  use_dec_loss: true

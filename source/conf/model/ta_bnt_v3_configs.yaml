@@ -1,0 +1,613 @@
+# ============================================================
+# TA-BNT v3 Ablation Experiment Configs
+# ============================================================
+#
+# Architecture: Unified BrainnetCNN encoder on full 248x248 FC
+#   → sees ALL edges including GM-WM cross block
+#   → output split: Z_GM = Z[:,:200,:], Z_WM = Z[:,200:,:]
+#   → tissue-awareness from M3 coupling + M4 circuit pooling
+#
+# Phase 1: All ablation on pAD vs CN (n=295, 217:78)
+#   → Find best architecture
+#   → Compare to B3 (AUC 0.632) and benchmarks
+#
+# Phase 2: Best architecture(s) on full disease spectrum
+#   → 10 binary tasks across CN/pAD/EMCI/LMCI/AD
+#   → Characterize when cross-attn vs bipartite wins
+#
+# Phase 3: Interpretability on most interesting comparisons
+#
+# Shared defaults (override per experiment):
+#   num_gm: 200, num_wm: 48, n_classes: 2
+#   e2e_channels: 8, d_node: 32, n_e2e_layers: 1, d_k: 8
+#   dropout: 0.5, attn_dropout: 0.1
+#   mlp_hidden: [128, 32]
+#
+# TRAINING INTEGRATION — add to kfold_runner.py:
+#   if model_name == 'TissueAwareBNT_v3':
+#       from source.training.healthy_baseline_v3 import setup_v3_for_fold
+#       setup_v3_for_fold(model, train_loader, device='cuda')
+#
+# Zone settings (passed to ZoneGenerator via setup_v3_for_fold):
+#   Default: method=threshold, threshold_std=0.5, min_zone_size=5
+#   Alternative: method=topk, k=15
+# ============================================================
+
+# Top-level: select which experiment to run via CLI:
+#   model.experiment=A0_no_coupling
+experiment: A3_dual
+
+
+# ============================================================
+# GROUP A: Module 3 Coupling Ablation
+# ============================================================
+# Question: Which cross-tissue coupling mechanism works best?
+# Fixed: standard encoder (unified 248x248), circuit pooling (no hadamard)
+# Variable: coupling_mode
+#
+# NOTE: Using include_hadamard=False for safety on small n.
+#       Hadamard tested separately in Group D.
+
+A0_no_coupling:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: none
+  use_prior: false
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Encoder + circuit pooling only: no M3 coupling
+  # ~263K params (3,374 per pAD)
+  # Expected: worst, but establishes encoder contribution
+
+A1_bipartite:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: bipartite
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Path A only: B@B^T (3 scalar params for coupling)
+  # ~263K params (3,374 per pAD)
+  # Expected: strong on pAD vs CN (inductive bias wins)
+
+A2_cross_attn:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: cross_attn
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Path B only: zone-based cross-tissue attention
+  # ~265K params (3,400 per pAD)
+  # Expected: may underperform bipartite on pAD vs CN (small n)
+  #           but may win on other tasks with stronger signal
+
+A3_dual:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Both paths: bipartite + cross-tissue attention
+  # ~265K params (3,401 per pAD)
+  # Expected: best if paths are complementary
+
+
+# ============================================================
+# GROUP B: Encoder Capacity Ablation
+# ============================================================
+# Question: How much encoding capacity do we need?
+# Fixed: dual coupling, circuit pooling (no hadamard)
+# Variable: encoder size
+
+B1_ultra_light:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 4
+  d_node: 16
+  n_e2e_layers: 1
+  d_k: 4
+  mlp_hidden: [64, 16]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Minimal: ~70K params (893 per pAD)
+
+B2_standard:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Same as A3_dual (reference)
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Standard: ~265K params (3,401 per pAD)
+
+B3_medium:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 16
+  d_node: 64
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Larger encoder, wider features
+  # Risk: may overfit on pAD vs CN
+
+B4_deep:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 2
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # 2 E2E layers: more depth
+
+
+# ============================================================
+# GROUP C: Cross-Attention Dimension Ablation
+# ============================================================
+# Question: What d_k is optimal?
+# Fixed: cross_attn coupling, standard encoder, circuit pooling
+# Variable: d_k
+
+C1_dk4:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: cross_attn
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 4
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+
+C2_dk8:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Same as A2_cross_attn (reference)
+  coupling_mode: cross_attn
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+
+C3_dk16:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: cross_attn
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 16
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+
+
+# ============================================================
+# GROUP D: Module 4 Pooling Ablation
+# ============================================================
+# Question: Does circuit-aware pooling beat tissue-separate?
+#           Which circuit features matter?
+# Fixed: dual coupling, standard encoder
+# Variable: pooling mode and features
+
+D1_bio_pooling:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Tissue-SEPARATE pooling (Yeo 7 + tract groups)
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: bio
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Loses coupling structure
+  # ~193K params (2,470 per pAD)
+
+D2_circuit_minimal:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Circuit pooling: h_gm + h_wm only (no coupling info)
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: false
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Tests: does circuit structure alone help?
+
+D3_circuit_scalar:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Circuit + coupling scalar (no Hadamard)
+  # Same as A3_dual (this is the default config)
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Tests: does raw coupling strength add value?
+
+D4_circuit_hadamard:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Circuit + Hadamard (no scalar)
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: true
+  include_coupling_scalar: false
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Tests: does nonlinear tissue interaction matter?
+
+D5_circuit_full:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Circuit + Hadamard + scalar (everything)
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: true
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Full circuit features
+  # ~355K params (4,556 per pAD)
+
+
+# ============================================================
+# GROUP E: Zone Definition Ablation
+# ============================================================
+# Question: Does the healthy prior (B_CN_prior) help zone definition?
+# NOTE: These are ZoneGenerator settings passed to setup_v3_for_fold(),
+#       NOT model configs. Use with A3_dual model config.
+#
+# E1: zones from B_CN_prior, method=threshold, std=0.5  (DEFAULT)
+# E2: zones from B_CN_prior, method=topk, k=15
+# E3: zones from B_ALL (all subjects), method=threshold
+# E4: no zones (every GM attends to every WM, k=200)
+# E5: random zone assignment (permuted GM indices)
+#
+# Implementation:
+#   For E1-E3: change ZoneGenerator parameters in setup_v3_for_fold()
+#   For E4: set zone_k=200 in setup_v3_for_fold() (global attention)
+#   For E5: randomly shuffle GM indices before zone assignment
+
+
+# ============================================================
+# GROUP F: Loss Function Ablation
+# ============================================================
+# Question: Which regularization losses help?
+# NOTE: These are training settings, not model configs.
+#       Use with best model from Groups A-D.
+#
+# F1: CE only
+# F2: CE + sparse (lambda=0.01)
+# F3: CE + sparse + inter-group (lambda=0.01 each)
+# F4: CE + sparse + inter + intra (lambda=0.01 each)
+
+
+# ============================================================
+# GROUP G: Healthy Prior Ablation
+# ============================================================
+# Question: Does B_CN_prior improve coupling?
+# Fixed: best model from Groups A-D
+# Variable: use_prior on/off
+
+G1_with_prior:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+
+G2_without_prior:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  coupling_mode: dual
+  use_prior: false
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 1
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+
+
+# ============================================================
+# PHASE 1 EXECUTION ORDER (all on pAD vs CN)
+# ============================================================
+#
+# Priority 0 — Critical baselines (do FIRST):
+#   Simple coupling baseline: mean |FC_GM-WM| -> LogReg -> AUC
+#   This takes 10 minutes and proves deep learning adds value.
+#
+# Priority 1 — Core architecture (Group A):
+#   Run A0, A1, A2, A3
+#   → Determines: does coupling help? which path wins?
+#   → Expected: A1 >= A2 > A0 (bipartite beats cross-attn on pAD)
+#   ~4 experiments × 5 folds × 5 repeats
+#
+# Priority 2 — Pooling (Group D):
+#   Run D1, D2, D3, D4, D5 (using best coupling from Group A)
+#   → Determines: does circuit pooling beat bio pooling?
+#   → Expected: D3 > D1 (circuit structure helps)
+#   ~5 experiments
+#
+# Priority 3 — Encoder and d_k (Groups B, C):
+#   Run B1-B4 and C1-C3
+#   → Determines: optimal encoder size and attention dimension
+#   ~7 experiments
+#
+# Priority 4 — Zones and prior (Groups E, G):
+#   Run E1-E5 and G1-G2
+#   → Determines: zone definition and prior contribution
+#   ~7 experiments
+#
+# Priority 5 — Loss (Group F):
+#   Run F1-F4 with final architecture
+#   ~4 experiments
+#
+# Total Phase 1: ~27 experiments on pAD vs CN
+#
+#
+# ============================================================
+# PHASE 2 EXECUTION ORDER (disease spectrum)
+# ============================================================
+#
+# Take best 2-3 architectures from Phase 1
+# Run on all 10 binary comparisons:
+#   CN vs pAD     (295, 217:78)
+#   CN vs EMCI    (335, 217:118)
+#   CN vs LMCI    (284, 217:67)
+#   CN vs AD      (266, 217:49)
+#   pAD vs EMCI   (196, 78:118)
+#   pAD vs LMCI   (145, 78:67)
+#   pAD vs AD     (127, 78:49)
+#   EMCI vs LMCI  (185, 118:67)
+#   EMCI vs AD    (167, 118:49)
+#   LMCI vs AD    (116, 67:49)
+#
+# Also run baseline models on all tasks:
+#   BNT (GM only), BNT (GM+WM), BrainGNN, Transformer
+#   v2/B3 (current SOTA)
+#
+# Total Phase 2: ~50 experiments (5 architectures × 10 tasks)
+
+
+# ============================================================
+# PARAMETER BUDGET SUMMARY (pAD vs CN, n=295, minority=78)
+# ============================================================
+# Unified encoder on 248x248 FC: 67,504 params (same as B3/v2 encoder)
+# 22 JHU bilateral tract groups → 22 zones/circuits
+#
+# Config             Total params   Per pAD    Status
+# ──────────────────────────────────────────────────────
+# A0 (no coupling)     ~263K         3,374     SAFE
+# A1 (bipartite)       ~263K         3,374     SAFE
+# A2 (cross_attn)      ~265K         3,400     SAFE
+# A3 (dual)            ~265K         3,401     SAFE
+# B1 (ultra-light)     ~70K            893     SAFE
+# B3 (medium)          varies        check     check
+# D1 (bio pool)        ~193K         2,470     SAFE
+# D5 (circuit full)    ~355K         4,556     SAFE
+# ──────────────────────────────────────────────────────
+# BNT/B3 v2 (ref)     ~1,754K       22,487     RISKY
+# BrainnetCNN (ref)    ~1,148K       14,722     RISKY
+#
+# All v3 configs SAFE for pAD vs CN (< 5,000 per minority)
+# v3 is 5-7x smaller than v2/B3 reference
+
+
+# ============================================================
+# NEW GROUP N: Combined Best Settings
+# ============================================================
+
+N1_deep_nocoupling:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Best encoder (B4: 2 layers) + best pooling (D3: scalar) + no coupling
+  # Rationale: M3 coupling is redundant with unified encoder
+  coupling_mode: none
+  use_prior: false
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 2
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Expected: ~0.63+ AUC, most stable config
+
+N2_deep_bipartite:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # B4 encoder + D3 pooling + bipartite coupling (cheap: 3 params)
+  # In case bipartite adds a small edge with better encoder
+  coupling_mode: bipartite
+  use_prior: false
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 2
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+
+N3_deep_nocoupling_highdrop:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Same as N1 but with higher dropout to reduce variance
+  coupling_mode: none
+  use_prior: false
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 2
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.65
+  attn_dropout: 0.1
+
+N4_deep_nocoupling_smallmlp:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Same as N1 but smaller MLP — reduce overfitting
+  # pool_dim → 64 → 16 → 2 (instead of → 128 → 32 → 2)
+  coupling_mode: none
+  use_prior: false
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 2
+  d_k: 8
+  mlp_hidden: [64, 16]
+  dropout: 0.5
+  attn_dropout: 0.1
+
+N5_deep_dual_scalar:
+  name: TissueAwareBNT_v3
+  train: TABNTTrain
+  # Direct comparison: exactly D3 but with deep encoder
+  # D3 was the ablation winner (AUC 0.635) — does deeper encoder push further?
+  coupling_mode: dual
+  use_prior: true
+  pooling_mode: circuit
+  include_hadamard: false
+  include_coupling_scalar: true
+  e2e_channels: 8
+  d_node: 32
+  n_e2e_layers: 2
+  d_k: 8
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1

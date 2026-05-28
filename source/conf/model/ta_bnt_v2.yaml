@@ -1,0 +1,674 @@
+# ============================================================
+# TA-BNT v2 Ablation Study Configurations
+# ============================================================
+#
+# Copy the relevant block into your model config for each experiment.
+# All other config fields (dataset, training, etc.) remain the same.
+#
+# Recommended run order:
+#   Exp 0 -> Exp 2 -> Exp 3 -> Exp 7 -> Exp 1 -> Exp 4 -> Exp 5 -> Exp 6 -> Exp 8
+#
+# Expected ablation table for paper:
+#   | Exp | Tissue Embed | Coupling Mode     | Extra Params | AUC  |
+#   |-----|-------------|-------------------|-------------|------|
+#   | 0   | No          | None (vanilla BNT)| 0           | 0.60 |
+#   | 1   | Yes         | None              | 496         | 0.61 |
+#   | 2   | Yes         | Learned           | 497         | 0.59 |
+#   | 3   | Yes         | Raw FC            | 497         | 0.61 |
+#   | 4   | Yes         | Combined          | 498         | 0.53 |
+#   | 5   | Yes         | Multi-hop (2)     | 499         | 0.62 |
+#   | 6   | Yes         | Network-aware     | 504         | 0.59 |
+#   | 7   | No          | Raw FC            | 1           | 0.59 |
+#   | 8   | No          | Network-aware     | 8           | 0.58 |
+# ============================================================
+
+# Select experiment by overriding model.experiment
+# Example: model=ta_bnt_v2 model.experiment=exp0_vanilla_bnt
+experiment: exp0_vanilla_bnt
+
+
+# --- Exp 0: Vanilla BNT baseline ---
+# This is your true baseline (~0.60 AUC)
+# Equivalent to original BNT with pos_encoding=none
+exp0_vanilla_bnt:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: false
+  coupling_mode: none
+
+
+# --- Exp 1: Tissue embedding only ---
+# Tests whether tissue-type identity signal helps
+exp1_tissue_only:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: none
+
+
+# --- Exp 2: Bipartite learned (current best: AUC 0.611) ---
+# Coupling from transformer embeddings Z_GM @ Z_WM^T
+exp2_bipartite_learned:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_learned
+
+
+# --- Exp 3: Bipartite raw FC ---
+# Uses actual measured WM-GM functional connectivity
+# Most biologically grounded; directly tests Xu et al. hypothesis
+exp3_bipartite_raw:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_raw
+
+
+# --- Exp 4: Bipartite combined (raw + learned) ---
+# Learned mixing weight beta decides optimal blend
+exp4_bipartite_combined:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+
+
+# --- Exp 5: Multi-hop bipartite (2 hops) ---
+# Captures indirect WM-mediated GM-GM connections
+exp5_bipartite_multihop:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_multihop
+  bipartite_hops: 2
+
+
+# --- Exp 6: Network-aware bipartite ---
+# Per-network projection with learned Yeo 7-network importance
+# Tests if somatomotor/control networks contribute more (Xu et al.)
+exp6_bipartite_network:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_network
+
+
+# --- Exp 7: Raw bipartite WITHOUT tissue embedding ---
+# Isolates coupling contribution from tissue embedding
+exp7_raw_no_tissue:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: false
+  coupling_mode: bipartite_raw
+
+
+# --- Exp 8: Network-aware WITHOUT tissue embedding ---
+# Isolates network-aware coupling contribution
+exp8_network_no_tissue:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: identity
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: false
+  coupling_mode: bipartite_network
+
+exp9_combined_bidirectional:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]          # Same as v2! Layer 1 still does DEC
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined_bidirectional
+
+
+# Refinement A: Combined + tract attention
+exp10_combined_tract_attn:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined_tract_attn
+
+# Refinement B: Combined + multi-hop
+exp11_combined_multihop:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined_multihop
+  bipartite_hops: 2
+
+# Refinement C: Combined + sparse (try top_k = 5, 10, 15)
+exp12_combined_sparse_k10:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined_sparse
+  sparse_top_k: 4
+
+# --- Exp 14: NBP Dual-Pathway (Absolute + Deviation) ---
+# Pathway 1: Standard combined projection (same as Exp 4)
+# Pathway 2: Z-scored deviation from healthy baseline
+# Extra params: 3 (alpha1, alpha2, beta) — 1 more than Exp 4
+# REQUIRES: setup_healthy_baseline() called per fold
+exp14_deviation:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_deviation
+
+
+# --- Exp 15: NBP Deviation-Only ---
+# Pure deviation pathway, no standard combined projection
+# Tests whether the deviation signal alone is discriminative
+# Extra params: 1 (alpha)
+# REQUIRES: setup_healthy_baseline() called per fold
+exp15_deviation_only:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_deviation_only
+
+
+# ============================================================
+# Loss Function Experiments (T1-T7)
+# All use Exp 4 architecture (bipartite_combined)
+# Only the loss configuration changes.
+# Requires TABNTTrain training class.
+# ============================================================
+
+# --- T1: Class weight only (no coupling loss) ---
+t1_class_weight:
+  name: TissueAwareBNT_v2
+  train: TABNTTrain
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+# --- T2: Class weight + inter-group loss ---
+t2_inter:
+  name: TissueAwareBNT_v2
+  train: TABNTTrain
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.1
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+# --- T3: Class weight + inter + intra ---
+t3_inter_intra:
+  name: TissueAwareBNT_v2
+  train: TABNTTrain
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.1
+  lambda_intra: 0.01
+  use_dec_loss: false
+
+# --- T4: Stronger inter-group ---
+t4_strong_inter:
+  name: TissueAwareBNT_v2
+  train: TABNTTrain
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.5
+  lambda_intra: 0.01
+  use_dec_loss: false
+
+# --- T5: Stronger intra-group ---
+t5_strong_intra:
+  name: TissueAwareBNT_v2
+  train: TABNTTrain
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.1
+  lambda_intra: 0.1
+  use_dec_loss: false
+
+# --- T6: Coupling loss without class weight ---
+t6_no_classweight:
+  name: TissueAwareBNT_v2
+  train: TABNTTrain
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  lambda_inter: 0.1
+  lambda_intra: 0.01
+  use_dec_loss: false
+
+# --- T7: Full combo with DEC loss ---
+t7_full:
+  name: TissueAwareBNT_v2
+  train: TABNTTrain
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 2.78]
+  lambda_inter: 0.1
+  lambda_intra: 0.01
+  use_dec_loss: true
+
+w1_mild:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 1.2]
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+# W2: Mild
+w2_mild:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 1.5]
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+# W3: Moderate
+w3_moderate:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 1.8]
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+# W4: Medium
+w4_medium:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  class_weight: [1.0, 2.0]
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+# Verification run — should reproduce AUC 0.648
+verify_baseline:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  # No class weight, no coupling loss, no DEC loss
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+  # NOTE: class_weight should NOT be set at all
+
+
+a0_baseline:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  use_prior: false
+  lambda_sparse: 0.0
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+
+# --- A1: L1 sparsity only (small) ---
+a1_sparse_small:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  use_prior: false
+  lambda_sparse: 0.001
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+
+# --- A2: L1 sparsity only (medium) ---
+a2_sparse_medium:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  use_prior: false
+  lambda_sparse: 0.01
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+
+# --- A3: L1 sparsity only (large) ---
+a3_sparse_large:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  use_prior: false
+  lambda_sparse: 0.1
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+
+# --- B1: Functional prior only (no sparsity) ---
+# Requires setup_functional_prior_from_dataloader() in model_training
+b1_prior_only:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  use_prior: true
+  lambda_sparse: 0.0
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+
+# --- B2: Functional prior + small sparsity ---
+b2_prior_sparse:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  use_prior: true
+  lambda_sparse: 0.01
+  lambda_inter: 0.0
+  lambda_intra: 0.0
+  use_dec_loss: false
+
+
+# --- B3: Functional prior + sparsity + inter-group ---
+b3_prior_sparse_inter:
+  name: TissueAwareBNT_v2
+  sizes: [360, 100]
+  pooling: [false, true]
+  pos_encoding: none
+  orthogonal: true
+  freeze_center: true
+  project_assignment: true
+  pos_embed_dim: 360
+  num_gm_nodes: 200
+  num_wm_nodes: 48
+  use_tissue_embed: true
+  coupling_mode: bipartite_combined
+  use_prior: true
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+  lambda_intra: 0.0
+  use_dec_loss: false

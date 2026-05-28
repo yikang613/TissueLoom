@@ -1,0 +1,348 @@
+# ============================================================
+# TA-BNT Final Model Configs
+# ============================================================
+#
+# Three unified components:
+#   1. Tissue-conditioned self-attention (tissue-pair bias)
+#   2. Bidirectional cross-tissue affinity propagation
+#   3. Anatomy-informed circuit dictionary readout
+#
+# NOTE: lambda_sparse and lambda_inter are training regularizers
+# read by TABNTTrain from cfg.model — they are NOT model constructor
+# args. They stay in the config for TABNTTrain to pick up.
+#
+# Registration: add to source/models/__init__.py:
+#   from .ta_bnt_final import TissueAwareBNT_final
+#   'TissueAwareBNT_final': TissueAwareBNT_final,
+#
+# Usage:
+#   # Quick test (5 random splits):
+#   python -m source model=ta_bnt_final_configs model.experiment=default \
+#       training.train=TABNTTrain repeat_time=5 preprocess=mixup +seed=42
+#
+#   # Paper results (10x5-fold nested CV):
+#   python -m source model=ta_bnt_final_configs model.experiment=default \
+#       training.train=TABNTTrain preprocess=mixup \
+#       +dataset.k_fold.enabled=true +dataset.k_fold.n_splits=5 \
+#       +eval_mode=nested_cv +n_repeats=10 +seed=42
+# ============================================================
+
+experiment: default
+
+
+# ============================================================
+# Main configuration (RECOMMENDED)
+# ============================================================
+# Clean end-to-end: classifier uses only learned circuit features.
+# Coupling scalars computed but used only for interpretability.
+
+default:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  # Architecture
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  use_within_tissue: false
+  include_coupling_scalar: false
+  include_network_summaries: false
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  # Training regularizers (read by TABNTTrain, not model)
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+
+
+# ============================================================
+# With circuit prompt tokens (cross-attention readout)
+# ============================================================
+# Replaces mean pooling per circuit with learnable prompt token
+# queries. Each circuit has a d-dimensional prompt that attends
+# to the most informative nodes within that circuit.
+# Adds only 22 x 32 x 2 = 1,408 parameters.
+
+with_prompt:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  use_within_tissue: false
+  include_coupling_scalar: false
+  include_network_summaries: false
+  use_prompt_tokens: true
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+
+
+# ============================================================
+# Ablation: with coupling scalar in classifier
+# ============================================================
+# Tests whether raw s_c adds value beyond learned features.
+# If this performs similarly to default, the learned features
+# capture coupling information end-to-end.
+
+with_scalar:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  include_coupling_scalar: true
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+
+
+# ============================================================
+# Ablation: no prior
+# ============================================================
+
+no_prior:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: false
+  include_coupling_scalar: false
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.01
+  lambda_inter: 0.0
+
+
+# ============================================================
+# Ablation: no coupling loss
+# ============================================================
+
+no_coupling_loss:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  include_coupling_scalar: false
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.0
+  lambda_inter: 0.0
+
+
+# ============================================================
+# Ablation: no tissue-pair bias (Module 1 disabled)
+# ============================================================
+# Removes the 2x2 tissue-pair bias from self-attention.
+# The model reduces to a vanilla transformer encoder over 248 nodes.
+# Tests the contribution of tissue-conditioned attention.
+
+no_bias:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  use_within_tissue: false
+  include_coupling_scalar: false
+  include_network_summaries: false
+  use_tissue_bias: false       # <-- Module 1 ablation
+  use_cross_tissue: true
+  use_circuit_readout: true
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+
+
+# ============================================================
+# Ablation: no cross-tissue propagation (Module 2 disabled)
+# ============================================================
+# Skips the bidirectional cross-tissue affinity propagation block
+# entirely. Attention outputs feed directly into the readout.
+# Tests the contribution of explicit GM-WM coupling propagation.
+
+no_cross_tissue:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  use_within_tissue: false
+  include_coupling_scalar: false
+  include_network_summaries: false
+  use_tissue_bias: true
+  use_cross_tissue: false      # <-- Module 2 ablation
+  use_circuit_readout: true
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.0           # coupling losses are meaningless without Module 2
+  lambda_inter: 0.0
+
+
+# ============================================================
+# Ablation: no circuit-dictionary readout (Module 3 disabled)
+# ============================================================
+# Replaces the anatomy-informed circuit-dictionary readout with a
+# simple global mean pool over GM and WM nodes. Tests the contribution
+# of the anatomy-grounded readout.
+
+no_circuit_readout:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  use_within_tissue: false
+  include_coupling_scalar: false
+  include_network_summaries: false
+  use_tissue_bias: true
+  use_cross_tissue: true
+  use_circuit_readout: false   # <-- Module 3 ablation
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+
+
+# ============================================================
+# Ablation: smaller model
+# ============================================================
+
+small:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 4
+  ffn_dim: 512
+  d_reduce: 16
+  use_prior: true
+  include_coupling_scalar: false
+  n_classes: 2
+  mlp_hidden: [64, 16]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+
+
+# ============================================================
+# Ablation: higher dropout
+# ============================================================
+
+high_dropout:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  include_coupling_scalar: false
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.65
+  attn_dropout: 0.15
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+
+
+# ============================================================
+# With Yeo 7 network summaries (for AD and later-stage tasks)
+# ============================================================
+# Adds GM functional network summaries (Vis, SomMot, DorsAttn,
+# SalVentAttn, Limbic, Cont, Default) to the circuit readout.
+# This gives the classifier access to intra-GM network patterns
+# that are disrupted in clinical AD but not captured by
+# WM-defined circuit groupings alone.
+# Use with white_gray_full input_type for AD tasks.
+
+with_networks:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  use_within_tissue: true
+  include_coupling_scalar: false
+  include_network_summaries: true
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
+
+
+# ============================================================
+# Full FC mode (for AD and later-stage tasks)
+# ============================================================
+# Enables within-tissue propagation to leverage GM-GM and WM-WM
+# patterns that are present in the full FC matrix.
+# Use with ++dataset.input_type=white_gray_full
+# For pAD with cross-tissue input, use 'default' instead.
+
+full_fc:
+  name: TissueAwareBNT_final
+  train: TABNTTrain
+  num_gm: 200
+  num_wm: 48
+  num_heads: 8
+  ffn_dim: 1024
+  d_reduce: 32
+  use_prior: true
+  use_within_tissue: true
+  include_coupling_scalar: false
+  include_network_summaries: false
+  n_classes: 2
+  mlp_hidden: [128, 32]
+  dropout: 0.5
+  attn_dropout: 0.1
+  lambda_sparse: 0.01
+  lambda_inter: 0.01
