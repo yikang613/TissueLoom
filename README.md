@@ -6,7 +6,6 @@ A **tissue-aware brain-network transformer** for whole-brain functional connecti
 2. **Bidirectional cross-tissue affinity propagation** — models GM↔WM coupling with a data-driven healthy-coupling prior.
 3. **Anatomy-informed circuit-dictionary readout** — aggregates node representations over canonical white-matter tract circuits.
 
-This repository contains **model and training code only**. It is built on top of the Brain Network Transformer framework (see Acknowledgements).
 
 ## Installation
 
@@ -58,8 +57,5 @@ Built on the Brain Network Transformer codebase
 
 ## Citation
 
-If you use TissueFormer, please cite the manuscript (in preparation; target venue *Medical Image Analysis*).
+If you use TissueFormer, please cite the manuscript (in preparation).
 
-## License
-
-See `LICENSE`. The same license as the upstream Brain Network Transformer applies to the framework code.
