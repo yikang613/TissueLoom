@@ -325,20 +325,19 @@ class TABNTTrain(Train):
             )
 
         # --- Final evaluation with best model ---
-        # Compute Youden-optimal operating point from test ROC curve.
-        # This is standard in diagnostic studies: AUC is the primary metric
-        # (threshold-independent), and the Youden point characterizes the
-        # ROC curve's best achievable balance between sensitivity/specificity.
-        test_probs, test_labels = self._collect_probs_labels(self.test_dataloader)
-        test_auc = roc_auc_score(test_labels, test_probs)
-
-        if len(np.unique(test_labels)) > 1:
-            fpr, tpr, thresholds = roc_curve(test_labels, test_probs)
-            j_scores = tpr - fpr
-            best_idx = np.argmax(j_scores)
-            self.final_threshold = float(thresholds[best_idx])
+        # Operating point: the Youden-optimal threshold is selected on the
+        # held-out VALIDATION split and then applied to the untouched test
+        # fold, so sensitivity/specificity use a threshold chosen without
+        # seeing the test labels. AUC is threshold-independent and unaffected.
+        val_probs, val_labels = self._collect_probs_labels(self.val_dataloader)
+        if len(np.unique(val_labels)) > 1:
+            fpr_v, tpr_v, thr_v = roc_curve(val_labels, val_probs)
+            self.final_threshold = float(thr_v[np.argmax(tpr_v - fpr_v)])
         else:
             self.final_threshold = 0.5
+
+        test_probs, test_labels = self._collect_probs_labels(self.test_dataloader)
+        test_auc = roc_auc_score(test_labels, test_probs)
 
         # Compute sens/spec at Youden-optimal point
         preds = (test_probs > self.final_threshold).astype(int)
@@ -380,8 +379,8 @@ class TABNTTrain(Train):
         Return metrics from the BEST model (restored via early stopping).
 
         AUC is threshold-independent (primary metric).
-        Sensitivity/specificity are at the Youden-optimal operating point
-        of the test ROC curve (standard diagnostic reporting).
+        Sensitivity/specificity are at the Youden-optimal operating point of
+        the held-out validation split, applied to the untouched test fold.
         """
         if hasattr(self, 'final_metrics') and self.final_metrics is not None:
             fm = self.final_metrics
