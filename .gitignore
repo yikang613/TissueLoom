@@ -124,3 +124,38 @@ AI_Figures/backup/
 # ----- macOS / Windows misc that sometimes sneaks in -----
 .AppleDouble/
 $RECYCLE.BIN/
+
+# ============================================================
+# ADDED 2026-08-31 — hardening after an audit found that
+# `input_matched_subjects_metadata.csv` slipped past the old
+# exact-name rule on line 8. Patterns below catch every variant.
+# ============================================================
+
+# ----- ADNI subject-level metadata (DUA-protected) -----
+*matched_subjects_metadata.csv
+*subjects_metadata*.csv
+*_metadata.csv
+*ADNIMERGE*
+*VisitCode*
+
+# ----- Manuscript & submission materials (keep local, never in the code repo) -----
+*.docx
+*.doc
+*.pptx
+*.ppt
+~$*
+reframe_sheet_*.html
+*Reframe_Strategy.html
+
+# ----- Benchmark / per-run result tables (regenerable; keep local) -----
+benchmark_auc_perrun.csv
+*_perrun.csv
+auc_summary*.csv
+master_results.csv
+tidy_*.csv
+input_*.csv
+
+# ----- Figures & manuscript artwork: code only in this repo -----
+figures/
+/Fig*_preview.png
+/ChatGPT Image*.png

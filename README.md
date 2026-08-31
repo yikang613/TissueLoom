@@ -1,6 +1,6 @@
-# TissueFormer
+# TissueLoom
 
-A **tissue-aware brain-network transformer** for whole-brain functional connectivity analysis across the Alzheimer's disease (AD) continuum. TissueFormer jointly represents gray-matter (Schaefer-200) and white-matter (JHU/Eve, 48 bundles) regions in a unified 248-node graph and introduces three coupled mechanisms:
+A **tissue-aware brain-network framework** for whole-brain functional connectivity analysis across the Alzheimer's disease (AD) continuum. TissueLoom jointly represents gray-matter (Schaefer-200) and white-matter (JHU/Eve, 48 bundles) regions in a unified 248-node graph and introduces three coupled mechanisms:
 
 1. **Tissue-conditioned self-attention** — injects gray/white tissue identity into the attention scores.
 2. **Bidirectional cross-tissue affinity propagation** — models GM↔WM coupling with a data-driven healthy-coupling prior.
@@ -20,9 +20,9 @@ source/
 ├── __main__.py            # entry point (Hydra-configured)
 ├── conf/                  # Hydra configs (dataset / model / training / optimizer / preprocess)
 │   ├── dataset/           # AD, EMCI, MCI, LMCI, pAD (+ ABCD/ABIDE from upstream)
-│   └── model/             # ta_bnt_final_configs (TissueFormer) + baselines
+│   └── model/             # ta_bnt_final_configs (TissueLoom) + baselines
 ├── models/
-│   ├── tissueformer/      # TissueFormer model — our contribution (ta_bnt_final.py = final model)
+│   ├── tissueformer/      # TissueLoom model — our contribution (ta_bnt_final.py = final model)
 │   ├── BNT/               # upstream Brain Network Transformer base (also used by baselines)
 │   ├── ComBrainTF/  DHGFormer/  LRBGT/   # transformer baselines
 │   └── brainnetcnn.py  brainnetmlp.py  fbnetgen.py  transformer.py
@@ -32,7 +32,7 @@ source/
 └── utils/                 # healthy-coupling prior, metrics, seeding, etc.
 ```
 
-The TissueFormer model itself is `source/models/tissueformer/ta_bnt_final.py`, configured via `source/conf/model/ta_bnt_final_configs.yaml`.
+The model itself is `source/models/tissueformer/ta_bnt_final.py`, configured via `source/conf/model/ta_bnt_final_configs.yaml`. The `tissueformer/` directory and the `ta_bnt_*` file names are kept from the project's earlier name so that existing configs and checkpoints keep working.
 
 ## Data
 
@@ -43,7 +43,7 @@ The dataset config files (`source/conf/dataset/*.yaml`) use placeholder paths (e
 ## Quick start
 
 ```bash
-# Train TissueFormer on one of the binary AD-continuum tasks
+# Train TissueLoom on one of the binary AD-continuum tasks
 # (pAD / EMCI / MCI / LMCI / AD, each vs cognitively normal controls)
 python -m source dataset=pAD model=ta_bnt_final_configs
 ```
@@ -57,5 +57,4 @@ Built on the Brain Network Transformer codebase
 
 ## Citation
 
-If you use TissueFormer, please cite the manuscript (in preparation).
-
+If you use TissueLoom, please cite the manuscript (in preparation).
