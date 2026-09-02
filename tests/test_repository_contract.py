@@ -31,6 +31,22 @@ class RepositoryContractTests(unittest.TestCase):
             with self.subTest(path=path.relative_to(ROOT)):
                 self.assertTrue(path.is_file())
 
+    def test_nonredistributable_baseline_ports_are_not_in_release_tree(self) -> None:
+        excluded_paths = (
+            SOURCE / "models" / "brainnetmlp.py",
+            SOURCE / "models" / "ComBrainTF",
+            SOURCE / "models" / "DHGFormer",
+            SOURCE / "models" / "LRBGT",
+            SOURCE / "conf" / "model" / "brainnetmlp.yaml",
+            SOURCE / "conf" / "model" / "comtf.yaml",
+            SOURCE / "conf" / "model" / "dhgformer.yaml",
+            SOURCE / "conf" / "model" / "lrbgt.yaml",
+        )
+
+        for path in excluded_paths:
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertFalse(path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

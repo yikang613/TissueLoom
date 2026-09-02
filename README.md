@@ -6,7 +6,7 @@ A **tissue-aware brain-network framework** for whole-brain functional connectivi
 2. **Bidirectional cross-tissue affinity propagation** — models GM↔WM coupling with a data-driven healthy-coupling prior.
 3. **Anatomy-informed circuit-dictionary readout** — aggregates node representations over canonical white-matter tract circuits.
 
-> **Status:** Research code accompanying a manuscript in preparation. The current training pipeline requires a CUDA-enabled environment and is not intended for clinical use.
+> **Status:** Manuscript in preparation.
 
 
 ## Installation
@@ -22,12 +22,11 @@ source/
 ├── __main__.py            # entry point (Hydra-configured)
 ├── conf/                  # Hydra configs (dataset / model / training / optimizer / preprocess)
 │   ├── dataset/           # AD, EMCI, MCI, LMCI, pAD (+ ABCD/ABIDE from upstream)
-│   └── model/             # ta_bnt_final_configs (TissueLoom) + baselines
+│   └── model/             # ta_bnt_final_configs (TissueLoom) + included baselines
 ├── models/
 │   ├── tissueformer/      # TissueLoom model — our contribution (ta_bnt_final.py = final model)
-│   ├── BNT/               # upstream Brain Network Transformer base (also used by baselines)
-│   ├── ComBrainTF/  DHGFormer/  LRBGT/   # transformer baselines
-│   └── brainnetcnn.py  brainnetmlp.py  fbnetgen.py  transformer.py
+│   ├── BNT/               # upstream Brain Network Transformer base
+│   └── brainnetcnn.py  fbnetgen.py  transformer.py
 ├── dataset/               # dataset loaders (no data included)
 ├── training/              # training loops (incl. tabnt_training.py)
 ├── components/            # logger, optimizer, LR scheduler
@@ -85,7 +84,11 @@ An end-to-end test is not included because ADNI-derived inputs cannot be redistr
 ## Acknowledgements
 
 Built on the Brain Network Transformer codebase
-([Wayfear/BrainNetworkTransformer](https://github.com/Wayfear/BrainNetworkTransformer), NeurIPS 2022) — see `README_upstream_BNT.md` for the original README. Data: Alzheimer's Disease Neuroimaging Initiative (ADNI).
+([Wayfear/BrainNetworkTransformer](https://github.com/Wayfear/BrainNetworkTransformer), NeurIPS 2022) — see `README_upstream_BNT.md` for the original README. The BNT clustering components use [pt-dec](https://github.com/vlukiyanov/pt-dec).
+
+Reference baseline implementations used during research include [Com-BrainTF](https://github.com/ubc-tea/Com-BrainTF), [DHGFormer](https://github.com/iMoonLab/DHGFormer), [ALTER/LRBGT](https://github.com/yushuowiki/ALTER), and [BrainNetMLP](https://github.com/JayceonHo/BrainNetMLP). Their source code is not redistributed in the current repository; please use the official repositories under their respective terms.
+
+Data: Alzheimer's Disease Neuroimaging Initiative (ADNI). See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for software notices and license texts.
 
 ## Citation
 

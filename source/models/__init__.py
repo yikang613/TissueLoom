@@ -7,10 +7,6 @@ from .tissueformer.tissue_aware_bnt_v2 import TissueAwareBNT, TissueAwareBNT_Con
 from .tissueformer.ta_bnt_v2_refined import TissueAwareBNT_v2
 from .tissueformer.ta_bnt_v3 import TissueAwareBNT_v3
 from .tissueformer.ta_bnt_final import TissueAwareBNT_final
-from .brainnetmlp import BrainNetMLP
-from .DHGFormer import DHGFormer
-from .LRBGT import LRBGT
-from .ComBrainTF import ComBrainTF
 
 
 def _resolve_model_name(model_cfg: DictConfig):
