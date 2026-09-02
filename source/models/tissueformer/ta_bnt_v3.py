@@ -55,7 +55,6 @@ References:
   - Kawahara et al. (2017) NeuroImage: BrainnetCNN
   - Kan et al. (2022) MICCAI: BNT
 
-Authors: [Your Name]
 """
 
 import math

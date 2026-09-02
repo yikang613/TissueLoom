@@ -6,6 +6,8 @@ A **tissue-aware brain-network framework** for whole-brain functional connectivi
 2. **Bidirectional cross-tissue affinity propagation** — models GM↔WM coupling with a data-driven healthy-coupling prior.
 3. **Anatomy-informed circuit-dictionary readout** — aggregates node representations over canonical white-matter tract circuits.
 
+> **Status:** Research code accompanying a manuscript in preparation. The current training pipeline requires a CUDA-enabled environment and is not intended for clinical use.
+
 
 ## Installation
 
@@ -40,6 +42,8 @@ The model itself is `source/models/tissueformer/ta_bnt_final.py`, configured via
 
 The dataset config files (`source/conf/dataset/*.yaml`) use placeholder paths (e.g. `/path/to/adni_fc_data`) — point these to your own functional-connectivity files after obtaining the data.
 
+For each binary task, the configured directory must contain a `CN/` folder and the corresponding case folder (`pAD/`, `EMCI/`, `MCI/`, `LMCI/`, or `AD/`). Each participant-level MATLAB file must provide `SCH2_time` with shape `[200, T]` and `Eve_time` with shape `[48, T]`.
+
 ## Quick start
 
 ```bash
@@ -49,6 +53,34 @@ python -m source dataset=pAD model=ta_bnt_final_configs
 ```
 
 Override any Hydra config field on the command line (e.g. `dataset.batch_size=32`).
+
+For the repeated nested evaluation used by the paper pipeline, run ten independently shuffled five-fold outer evaluations. Each outer training partition receives its own inner validation split for early stopping and threshold selection; the outer test fold is evaluated only once after the best validation model is restored.
+
+```bash
+python -m source \
+  dataset=pAD \
+  model=ta_bnt_final_configs \
+  model.experiment=default \
+  training.train=TABNTTrain \
+  preprocess=mixup \
+  dataset.k_fold.enabled=true \
+  dataset.k_fold.n_splits=5 \
+  eval_mode=nested_cv \
+  n_repeats=10 \
+  seed=42
+```
+
+The command creates 50 training runs and records the repeat index, outer fold, split seeds, training seed, per-fold metrics, and per-repeat summaries in `saved_results/`.
+
+## Tests
+
+Dependency-free checks cover the 10×5 run plan and Python source integrity:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+An end-to-end test is not included because ADNI-derived inputs cannot be redistributed. The full training command must still be validated in the paper's CUDA environment with authorized data.
 
 ## Acknowledgements
 

@@ -10,6 +10,7 @@ from .dataset import dataset_factory
 from .models import model_factory
 from .components import lr_scheduler_factory, optimizers_factory, logger_factory
 from .training import training_factory
+from .evaluation import build_evaluation_plan
 from sklearn.metrics import roc_auc_score
 from datetime import datetime
 
@@ -209,28 +210,58 @@ def main(cfg: DictConfig):
     model_name = resolve_model_name(cfg.model)
     kfold_cfg = getattr(cfg.dataset, 'k_fold', None)
     kfold_enabled = bool(getattr(kfold_cfg, 'enabled', False))
-    run_count = int(getattr(kfold_cfg, 'n_splits', 5)) if kfold_enabled else cfg.repeat_time
+    n_splits = int(getattr(kfold_cfg, 'n_splits', 5))
+    eval_mode = str(getattr(cfg, 'eval_mode', 'standard'))
+    n_repeats = int(getattr(cfg, 'n_repeats', 1))
     group_name = f"{cfg.dataset.name}_{model_name}_{cfg.datasz.percentage}_{cfg.preprocess.name}"
 
     base_seed = getattr(cfg, 'seed', None)
+    if base_seed is not None:
+        base_seed = int(base_seed)
+    split_seed_base = int(getattr(kfold_cfg, 'random_state', 42))
+    evaluation_plan = build_evaluation_plan(
+        kfold_enabled=kfold_enabled,
+        n_splits=n_splits,
+        repeat_time=int(cfg.repeat_time),
+        eval_mode=eval_mode,
+        n_repeats=n_repeats,
+        base_seed=base_seed,
+        split_seed_base=split_seed_base,
+    )
+    run_count = len(evaluation_plan)
+
+    if eval_mode.lower() == 'nested_cv':
+        print(
+            f"[Evaluation] repeated nested CV: {n_repeats} repeats x "
+            f"{n_splits} outer folds = {run_count} training runs"
+        )
 
     # Per-fold results for saving
     fold_results = []
+    prediction_file_initialized = False
 
-    for run_idx in range(run_count):
-        if base_seed is not None and _HAS_SEED:
-            run_seed = base_seed + run_idx
+    for evaluation_index, evaluation_run in enumerate(evaluation_plan):
+        run_seed = evaluation_run.training_seed
+        if run_seed is not None and _HAS_SEED:
             seed_everything(run_seed, deterministic=True)
-            print(f"\n[Seed] Run {run_idx+1}/{run_count}, seed={run_seed}")
+            print(
+                f"\n[Seed] Run {evaluation_index + 1}/{run_count}, "
+                f"seed={run_seed}"
+            )
 
         if kfold_enabled:
             with open_dict(cfg):
-                cfg.dataset.k_fold.current_fold = run_idx
-                if base_seed is not None:
-                    cfg.dataset.k_fold.split_seed = base_seed
-            run_name = f"fold_{run_idx+1}_of_{run_count}"
+                cfg.dataset.k_fold.current_fold = evaluation_run.fold_index
+                cfg.dataset.k_fold.split_seed = evaluation_run.split_seed
+                cfg.dataset.k_fold.inner_split_seed = \
+                    evaluation_run.inner_split_seed
+            run_name = (
+                f"repeat_{evaluation_run.repeat_index + 1}_of_"
+                f"{n_repeats if eval_mode.lower() == 'nested_cv' else 1}_"
+                f"fold_{evaluation_run.fold_index + 1}_of_{n_splits}"
+            )
         else:
-            run_name = None
+            run_name = f"run_{evaluation_index + 1}_of_{run_count}"
 
         run = wandb.init(
             project=cfg.project,
@@ -273,13 +304,24 @@ def main(cfg: DictConfig):
                     training.test_dataloader)
 
                 pred_file = os.path.join(pred_dir,
-                    f"{model_name}_{cfg.dataset.name}_{getattr(cfg.dataset, 'input_type', 'default')}.csv")
-                write_header = not os.path.exists(pred_file)
-                with open(pred_file, 'a') as pf:
-                    if write_header:
-                        pf.write("seed,fold,subject_idx,prob,label\n")
+                    f"{model_name}_{cfg.dataset.name}_"
+                    f"{getattr(cfg.dataset, 'input_type', 'default')}_"
+                    f"{eval_mode}_seed{base_seed}.csv")
+                prediction_mode = 'a' if prediction_file_initialized else 'w'
+                with open(pred_file, prediction_mode) as pf:
+                    if not prediction_file_initialized:
+                        pf.write(
+                            "repeat,fold,split_seed,training_seed,"
+                            "subject_idx,prob,label\n"
+                        )
                     for idx, (p, l) in enumerate(zip(test_probs, test_labels)):
-                        pf.write(f"{base_seed},{run_idx},{idx},{p:.6f},{int(l)}\n")
+                        pf.write(
+                            f"{evaluation_run.repeat_index},"
+                            f"{evaluation_run.fold_index},"
+                            f"{evaluation_run.split_seed},{run_seed},"
+                            f"{idx},{p:.6f},{int(l)}\n"
+                        )
+                prediction_file_initialized = True
                 print(f"[Saved] {len(test_probs)} predictions to {pred_file}")
             else:
                 print(f"[WARNING] Cannot save predictions: "
@@ -293,8 +335,11 @@ def main(cfg: DictConfig):
         all_metrics['specificity'].append(spec)
 
         fold_results.append({
-            'fold': run_idx,
-            'seed': base_seed + run_idx if base_seed is not None else None,
+            'repeat': evaluation_run.repeat_index,
+            'fold': evaluation_run.fold_index,
+            'split_seed': evaluation_run.split_seed,
+            'inner_split_seed': evaluation_run.inner_split_seed,
+            'seed': run_seed,
             'AUC': auc,
             'Accuracy': acc,
             'F1': f1,
@@ -310,6 +355,32 @@ def main(cfg: DictConfig):
         std_val = np.std(values)
         print(f"{metric}: {mean_val:.4f} ± {std_val:.4f}")
 
+    repeat_summaries = []
+    if kfold_enabled:
+        repeat_count = (
+            n_repeats if eval_mode.lower() == 'nested_cv' else 1
+        )
+        for repeat_index in range(repeat_count):
+            repeat_rows = [
+                row for row in fold_results
+                if row['repeat'] == repeat_index
+            ]
+            repeat_summaries.append({
+                'repeat': repeat_index,
+                'split_seed': repeat_rows[0]['split_seed'],
+                'n_folds': len(repeat_rows),
+                'AUC_mean': float(np.mean(
+                    [row['AUC'] for row in repeat_rows])),
+                'Accuracy_mean': float(np.mean(
+                    [row['Accuracy'] for row in repeat_rows])),
+                'F1_mean': float(np.mean(
+                    [row['F1'] for row in repeat_rows])),
+                'Sensitivity_mean': float(np.mean(
+                    [row['Sensitivity'] for row in repeat_rows])),
+                'Specificity_mean': float(np.mean(
+                    [row['Specificity'] for row in repeat_rows])),
+            })
+
     # ── Auto-save results to JSON ──
     dataset_name = cfg.dataset.name
     input_type = getattr(cfg.dataset, 'input_type', 'default')
@@ -321,7 +392,12 @@ def main(cfg: DictConfig):
         'dataset': dataset_name,
         'input_type': input_type,
         'base_seed': base_seed,
-        'n_folds': run_count,
+        'eval_mode': eval_mode,
+        'n_repeats': (
+            n_repeats if eval_mode.lower() == 'nested_cv' else 1
+        ),
+        'n_folds': n_splits if kfold_enabled else None,
+        'n_evaluations': run_count,
         'kfold_enabled': kfold_enabled,
         'summary': {
             'AUC_mean': float(np.mean(all_metrics['AUC'])),
@@ -335,6 +411,7 @@ def main(cfg: DictConfig):
             'Specificity_mean': float(np.mean(all_metrics['specificity'])),
             'Specificity_std': float(np.std(all_metrics['specificity'])),
         },
+        'per_repeat': repeat_summaries,
         'per_fold': fold_results,
     }
 
@@ -355,26 +432,39 @@ def main(cfg: DictConfig):
     tagged_model_name = f"{model_name}{name_suffix}"
 
     seed_str = f"_seed{base_seed}" if base_seed is not None else ""
-    filename = f"{tagged_model_name}_{dataset_name}_{input_type}{seed_str}.json"
+    if eval_mode.lower() == 'nested_cv':
+        eval_tag = f"nested{n_repeats}x{n_splits}"
+    elif kfold_enabled:
+        eval_tag = f"kfold{n_splits}"
+    else:
+        eval_tag = f"random{run_count}"
+    filename = (
+        f"{tagged_model_name}_{dataset_name}_{input_type}_"
+        f"{eval_tag}{seed_str}.json"
+    )
     filepath = os.path.join(results_dir, filename)
 
     with open(filepath, 'w') as f:
         json.dump(save_data, f, indent=2)
     print(f"\n[Saved] {filepath}")
 
-    # Also append to a master CSV for easy aggregation across seeds
+    # Save the complete run table. Re-running an identical evaluation
+    # replaces the old table rather than silently duplicating its rows.
     csv_path = os.path.join(results_dir,
-                            f"{tagged_model_name}_{dataset_name}_{input_type}_all.csv")
-    write_header = not os.path.exists(csv_path)
-    with open(csv_path, 'a') as f:
-        if write_header:
-            f.write("seed,fold,AUC,Accuracy,F1,Sensitivity,Specificity\n")
+                            f"{tagged_model_name}_{dataset_name}_{input_type}_"
+                            f"{eval_tag}{seed_str}.csv")
+    with open(csv_path, 'w') as f:
+        f.write(
+            "repeat,fold,split_seed,inner_split_seed,training_seed,"
+            "AUC,Accuracy,F1,Sensitivity,Specificity\n"
+        )
         for fr in fold_results:
-            f.write(f"{fr['seed']},{fr['fold']},"
+            f.write(f"{fr['repeat']},{fr['fold']},{fr['split_seed']},"
+                    f"{fr['inner_split_seed']},{fr['seed']},"
                     f"{fr['AUC']:.6f},{fr['Accuracy']:.6f},"
                     f"{fr['F1']:.6f},{fr['Sensitivity']:.6f},"
                     f"{fr['Specificity']:.6f}\n")
-    print(f"[Appended] {csv_path}")
+    print(f"[Saved] {csv_path}")
 
 
 if __name__ == '__main__':

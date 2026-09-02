@@ -44,9 +44,19 @@ def training_factory(config: DictConfig,
                      logger: logging.Logger) -> Train:
 
     train = _resolve_train_name(config)
-    return eval(train)(cfg=config,
-                       model=model,
-                       optimizers=optimizers,
-                       lr_schedulers=lr_schedulers,
-                       dataloaders=dataloaders,
-                       logger=logger)
+    training_class = eval(train)
+    eval_mode = str(getattr(config, 'eval_mode', 'standard')).lower()
+    if (
+        eval_mode == 'nested_cv'
+        and not getattr(training_class, 'supports_strict_nested_cv', False)
+    ):
+        raise ValueError(
+            f"{train} does not keep the outer test fold hidden during "
+            "training and cannot be used with eval_mode=nested_cv"
+        )
+    return training_class(cfg=config,
+                          model=model,
+                          optimizers=optimizers,
+                          lr_schedulers=lr_schedulers,
+                          dataloaders=dataloaders,
+                          logger=logger)

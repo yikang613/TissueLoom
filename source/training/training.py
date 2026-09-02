@@ -16,6 +16,8 @@ import logging
 
 class Train:
 
+    supports_strict_nested_cv = False
+
     def __init__(self, cfg: DictConfig,
                  model: torch.nn.Module,
                  optimizers: List[torch.optim.Optimizer],

@@ -28,6 +28,7 @@ import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 from source.utils import continus_mixup_data
+from source.evaluation import should_evaluate_outer_test_during_training
 import wandb
 from omegaconf import DictConfig
 from typing import List
@@ -38,6 +39,8 @@ from .training import Train
 
 
 class TABNTTrain(Train):
+
+    supports_strict_nested_cv = True
 
     def __init__(self, cfg: DictConfig,
                  model: torch.nn.Module,
@@ -222,6 +225,9 @@ class TABNTTrain(Train):
     def train(self):
         training_process = []
         self.current_step = 0
+        strict_nested_cv = not should_evaluate_outer_test_during_training(
+            str(getattr(self.config, 'eval_mode', 'standard'))
+        )
 
         for epoch in range(self.epochs):
             self.reset_meters()
@@ -243,70 +249,86 @@ class TABNTTrain(Train):
             else:
                 self.patience_counter += 1
 
-            # --- Find optimal threshold on validation set ---
-            val_probs, val_labels = self._collect_probs_labels(
-                self.val_dataloader
-            )
-            if len(np.unique(val_labels)) > 1:
-                fpr, tpr, thresholds = roc_curve(val_labels, val_probs)
-                j_scores = tpr - fpr
-                best_idx = np.argmax(j_scores)
-                optimal_threshold = float(thresholds[best_idx])
-            else:
-                optimal_threshold = 0.5
-
-            # --- Test evaluation (both thresholds) ---
-            test_result_default = self.test_per_epoch(
-                self.test_dataloader, self.test_loss, self.test_accuracy
-            )
-
-            test_opt = self._evaluate_with_threshold(
-                self.test_dataloader, threshold=optimal_threshold
-            )
-
-            # --- Store metrics (threshold-optimized sens/spec) ---
             self.metrics["Val AUC"].append(val_auc)
-            self.metrics["Test Accuracy"].append(self.test_accuracy.avg / 100)
-            self.metrics["Test AUC"].append(test_result_default[0])
-            self.metrics["Test F1"].append(test_opt['f1'])
-            self.metrics["Test Recall"].append(test_opt['recall'])
-            self.metrics["Test Precision"].append(test_opt['precision'])
-            self.metrics["Test Sensitivity"].append(test_opt['sensitivity'])
-            self.metrics["Test Specificity"].append(test_opt['specificity'])
 
-            self.logger.info(" | ".join([
+            log_fields = [
                 f'Epoch[{epoch}/{self.epochs}]',
                 f'Train Loss:{self.train_loss.avg: .3f}',
                 f'Val AUC:{val_auc:.4f}',
-                f'Test AUC:{test_result_default[0]:.4f}',
-                f'Thr:{optimal_threshold:.3f}',
-                f'Sen:{test_opt["sensitivity"]:.3f}',
-                f'Spe:{test_opt["specificity"]:.3f}',
                 f'Patience:{self.patience_counter}/{self.patience}',
-            ]))
-
-            wandb.log({
+            ]
+            wandb_metrics = {
                 "Train Loss": self.train_loss.avg,
                 "Train Accuracy": self.train_accuracy.avg,
                 "Val AUC": val_auc,
-                "Test AUC": test_result_default[0],
-                "Optimal Threshold": optimal_threshold,
-                "Test Sensitivity (opt)": test_opt['sensitivity'],
-                "Test Specificity (opt)": test_opt['specificity'],
-                "Test Sensitivity (0.5)": test_result_default[-1],
-                "macro F1 (opt)": test_opt['f1'],
                 "Patience Counter": self.patience_counter,
-            })
-
-            training_process.append({
+            }
+            process_row = {
                 "Epoch": epoch,
                 "Train Loss": self.train_loss.avg,
                 "Val AUC": val_auc,
-                "Test AUC": test_result_default[0],
-                "Optimal Threshold": optimal_threshold,
-                "Test Sensitivity (opt)": test_opt['sensitivity'],
-                "Test Specificity (opt)": test_opt['specificity'],
-            })
+            }
+
+            if not strict_nested_cv:
+                # Development mode retains per-epoch test diagnostics. In
+                # nested-CV mode the outer test fold remains completely
+                # untouched until the best validation model is restored.
+                val_probs, val_labels = self._collect_probs_labels(
+                    self.val_dataloader
+                )
+                if len(np.unique(val_labels)) > 1:
+                    fpr, tpr, thresholds = roc_curve(val_labels, val_probs)
+                    j_scores = tpr - fpr
+                    best_idx = np.argmax(j_scores)
+                    optimal_threshold = float(thresholds[best_idx])
+                else:
+                    optimal_threshold = 0.5
+
+                test_result_default = self.test_per_epoch(
+                    self.test_dataloader, self.test_loss, self.test_accuracy
+                )
+                test_opt = self._evaluate_with_threshold(
+                    self.test_dataloader, threshold=optimal_threshold
+                )
+
+                self.metrics["Test Accuracy"].append(
+                    self.test_accuracy.avg / 100
+                )
+                self.metrics["Test AUC"].append(test_result_default[0])
+                self.metrics["Test F1"].append(test_opt['f1'])
+                self.metrics["Test Recall"].append(test_opt['recall'])
+                self.metrics["Test Precision"].append(test_opt['precision'])
+                self.metrics["Test Sensitivity"].append(
+                    test_opt['sensitivity']
+                )
+                self.metrics["Test Specificity"].append(
+                    test_opt['specificity']
+                )
+
+                log_fields.extend([
+                    f'Test AUC:{test_result_default[0]:.4f}',
+                    f'Thr:{optimal_threshold:.3f}',
+                    f'Sen:{test_opt["sensitivity"]:.3f}',
+                    f'Spe:{test_opt["specificity"]:.3f}',
+                ])
+                wandb_metrics.update({
+                    "Test AUC": test_result_default[0],
+                    "Optimal Threshold": optimal_threshold,
+                    "Test Sensitivity (opt)": test_opt['sensitivity'],
+                    "Test Specificity (opt)": test_opt['specificity'],
+                    "Test Sensitivity (0.5)": test_result_default[-1],
+                    "macro F1 (opt)": test_opt['f1'],
+                })
+                process_row.update({
+                    "Test AUC": test_result_default[0],
+                    "Optimal Threshold": optimal_threshold,
+                    "Test Sensitivity (opt)": test_opt['sensitivity'],
+                    "Test Specificity (opt)": test_opt['specificity'],
+                })
+
+            self.logger.info(" | ".join(log_fields))
+            wandb.log(wandb_metrics)
+            training_process.append(process_row)
 
             # --- Early stopping ---
             if self.patience_counter >= self.patience:

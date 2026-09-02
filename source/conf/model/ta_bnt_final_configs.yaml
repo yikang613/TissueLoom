@@ -18,13 +18,14 @@
 # Usage:
 #   # Quick test (5 random splits):
 #   python -m source model=ta_bnt_final_configs model.experiment=default \
-#       training.train=TABNTTrain repeat_time=5 preprocess=mixup +seed=42
+#       training.train=TABNTTrain repeat_time=5 preprocess=mixup seed=42
 #
-#   # Paper results (10x5-fold nested CV):
+#   # Paper evaluation (10 repeated 5-fold outer CV runs, with an
+#   # inner validation split created inside each outer training fold):
 #   python -m source model=ta_bnt_final_configs model.experiment=default \
 #       training.train=TABNTTrain preprocess=mixup \
-#       +dataset.k_fold.enabled=true +dataset.k_fold.n_splits=5 \
-#       +eval_mode=nested_cv +n_repeats=10 +seed=42
+#       dataset.k_fold.enabled=true dataset.k_fold.n_splits=5 \
+#       eval_mode=nested_cv n_repeats=10 seed=42
 # ============================================================
 
 experiment: default

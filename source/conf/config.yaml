@@ -10,6 +10,13 @@ repeat_time: 5
 log_path: result
 save_learnable_graph: False
 
+# Evaluation orchestration. Keep `standard` for quick development runs.
+# Use `nested_cv` with k_fold.enabled=true for repeated outer K-fold
+# evaluation with a separate validation split inside every outer fold.
+eval_mode: standard
+n_repeats: 1
+seed: null
+
 # wandb
 #wandb_entity: eggroup
 

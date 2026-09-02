@@ -126,13 +126,23 @@ def init_stratified_kfold_dataloader(cfg: DictConfig,
 
     length = final_timeseires.shape[0]
     percentage = float(cfg.datasz.percentage)
+    split_seed = int(getattr(
+        cfg.dataset.k_fold,
+        'split_seed',
+        getattr(cfg.dataset.k_fold, 'random_state', 42),
+    ))
+    inner_split_seed = int(getattr(
+        cfg.dataset.k_fold,
+        'inner_split_seed',
+        split_seed,
+    ))
 
     if percentage < 1.0:
         subset_size = int(length * percentage)
         subset_split = StratifiedShuffleSplit(
             n_splits=1,
             train_size=subset_size,
-            random_state=42,
+            random_state=split_seed,
         )
         subset_indices, _ = next(subset_split.split(np.zeros(length), stratified))
         final_timeseires = final_timeseires[subset_indices]
@@ -143,7 +153,7 @@ def init_stratified_kfold_dataloader(cfg: DictConfig,
     n_splits = int(getattr(cfg.dataset.k_fold, 'n_splits', 5))
     fold_index = int(getattr(cfg.dataset.k_fold, 'current_fold', 0))
     shuffle = bool(getattr(cfg.dataset.k_fold, 'shuffle', True))
-    random_state = getattr(cfg.dataset.k_fold, 'random_state', 42)
+    random_state = split_seed
     if not shuffle:
         random_state = None
 
@@ -163,7 +173,7 @@ def init_stratified_kfold_dataloader(cfg: DictConfig,
     split_tv = StratifiedShuffleSplit(
         n_splits=1,
         test_size=val_ratio,
-        random_state=42,
+        random_state=inner_split_seed,
     )
     inner_train_rel, inner_val_rel = next(
         split_tv.split(np.zeros(len(trainval_index)), trainval_stratified)
